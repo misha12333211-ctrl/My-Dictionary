@@ -1,148 +1,230 @@
 <!DOCTYPE html>
-<html lang="ru" class="h-full bg-slate-900 text-slate-100">
+<html lang="ru" data-theme="dark">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Lexicon Flow — Стильный словарь английского</title>
-  
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#f0fdf4',
-              500: '#22c55e',
-              600: '#16a34a',
-              700: '#15803d',
-            }
-          }
-        }
-      }
-    }
-  </script>
-  
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  
-  <!-- Babel for running TypeScript directly in client -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
-  <link rel="stylesheet" href="styles.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VocabCraft — English Learning</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="h-full flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation (Desktop) -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-icon"><i data-lucide="sparkles"></i></div>
+                <span class="logo-text">VocabCraft</span>
+            </div>
+            
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-tab="search">
+                    <i data-lucide="search"></i><span>Поиск</span>
+                </button>
+                <button class="nav-btn" data-tab="dictionary">
+                    <i data-lucide="book-open"></i><span>Мой словарь</span>
+                    <span class="badge" id="dict-count-badge">0</span>
+                </button>
+                <button class="nav-btn" data-tab="cards">
+                    <i data-lucide="layers"></i><span>Карточки</span>
+                </button>
+                <button class="nav-btn" data-tab="quiz">
+                    <i data-lucide="brain-circuit"></i><span>Квиз</span>
+                </button>
+                <button class="nav-btn" data-tab="spelling">
+                    <i data-lucide="pen-tool"></i><span>Правописание</span>
+                </button>
+            </nav>
 
-  <!-- Header / Navigation -->
-  <header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-4 py-3">
-    <div class="max-w-4xl mx-auto flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <div class="p-2 bg-brand-500/10 text-brand-500 rounded-xl border border-brand-500/20">
-          <i data-lucide="book-marked" class="w-6 h-6"></i>
-        </div>
-        <span class="font-bold text-xl tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-          Lexicon<span class="text-brand-500">Flow</span>
-        </span>
-      </div>
+            <div class="sidebar-footer">
+                <div class="streak-pill">
+                    <i data-lucide="flame" class="flame-icon"></i>
+                    <span id="streak-count">0</span> дней подряд
+                </div>
+                <button id="theme-toggle" class="icon-btn" title="Сменить тему">
+                    <i data-lucide="sun" id="theme-icon"></i>
+                </button>
+            </div>
+        </aside>
 
-      <!-- Tab Switcher -->
-      <nav class="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/50 text-xs sm:text-sm">
-        <button id="nav-dictionary" onclick="switchTab('dictionary')" class="tab-btn active">
-          <i data-lucide="list" class="w-4 h-4 mr-1 sm:mr-1.5 inline"></i>Словарь
-        </button>
-        <button id="nav-cards" onclick="switchTab('cards')" class="tab-btn">
-          <i data-lucide="layers" class="w-4 h-4 mr-1 sm:mr-1.5 inline"></i>Карточки
-        </button>
-        <button id="nav-sprint" onclick="switchTab('sprint')" class="tab-btn">
-          <i data-lucide="zap" class="w-4 h-4 mr-1 sm:mr-1.5 inline"></i>Спринт
-        </button>
-      </nav>
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header Bar -->
+            <header class="top-bar">
+                <div class="user-progress">
+                    <div class="progress-info">
+                        <span>Дневная цель: <strong id="daily-goal-text">0/5</strong> слов</span>
+                    </div>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="daily-progress"></div>
+                    </div>
+                </div>
+                <div class="mobile-actions">
+                    <div class="streak-pill mobile-only">
+                        <i data-lucide="flame" class="flame-icon"></i>
+                        <span id="streak-count-mobile">0</span>
+                    </div>
+                    <button id="theme-toggle-mobile" class="icon-btn mobile-only">
+                        <i data-lucide="sun"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- TAB 1: SEARCH & DICTIONARY -->
+            <section id="tab-search" class="tab-pane active">
+                <div class="search-hero">
+                    <h1>Исследуй английский язык</h1>
+                    <p>Ищи слова, слушай произношение и добавляй в личную коллекцию</p>
+                    <form id="search-form" class="search-box">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="search-input" placeholder="Введите слово на английском..." autocomplete="off">
+                        <button type="submit" class="btn-primary">Искать</button>
+                    </form>
+                    <div class="quick-tags">
+                        <span>Популярное:</span>
+                        <button class="tag-btn" data-word="resilient">resilient</button>
+                        <button class="tag-btn" data-word="eloquent">eloquent</button>
+                        <button class="tag-btn" data-word="serendipity">serendipity</button>
+                        <button class="tag-btn" data-word="ambition">ambition</button>
+                    </div>
+                </div>
+
+                <div id="word-result" class="word-card-detail hidden"></div>
+            </section>
+
+            <!-- TAB 2: MY DICTIONARY -->
+            <section id="tab-dictionary" class="tab-pane">
+                <div class="section-header">
+                    <div>
+                        <h2>Мой словарь</h2>
+                        <p>Слова, которые вы сохранили для изучения</p>
+                    </div>
+                    <div class="dict-actions">
+                        <input type="text" id="dict-filter" placeholder="Фильтр слов..." class="input-small">
+                        <button id="add-custom-word-btn" class="btn-secondary">
+                            <i data-lucide="plus"></i> Добавить слово
+                        </button>
+                    </div>
+                </div>
+                <div id="saved-words-list" class="words-grid"></div>
+            </section>
+
+            <!-- TAB 3: FLASHCARDS -->
+            <section id="tab-cards" class="tab-pane">
+                <div class="section-header center">
+                    <h2>Флеш-карточки</h2>
+                    <p>Нажмите на карточку, чтобы перевернуть</p>
+                </div>
+                <div class="flashcards-wrapper">
+                    <div class="card-container" id="flashcard">
+                        <div class="card-inner">
+                            <div class="card-front">
+                                <span class="card-step" id="card-index">1 / 10</span>
+                                <h2 id="card-word">Word</h2>
+                                <p id="card-phonetic">/phonetic/</p>
+                                <button class="audio-btn" id="card-audio-btn"><i data-lucide="volume-2"></i></button>
+                                <span class="hint-text">Кликните, чтобы перевернуть</span>
+                            </div>
+                            <div class="card-back">
+                                <span class="part-of-speech-tag" id="card-pos">noun</span>
+                                <p class="definition" id="card-definition">Definition goes here...</p>
+                                <p class="example" id="card-example">"Example sentence goes here"</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-controls">
+                        <button id="prev-card" class="btn-circle"><i data-lucide="arrow-left"></i></button>
+                        <button id="mark-learned-btn" class="btn-success">
+                            <i data-lucide="check"></i> Выучено
+                        </button>
+                        <button id="next-card" class="btn-circle"><i data-lucide="arrow-right"></i></button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: QUIZ -->
+            <section id="tab-quiz" class="tab-pane">
+                <div class="quiz-container" id="quiz-box">
+                    <div class="quiz-header">
+                        <div class="quiz-stats">
+                            <span>Вопрос <strong id="quiz-current">1</strong>/<span id="quiz-total">5</span></span>
+                            <span>Счёт: <strong id="quiz-score">0</strong></span>
+                        </div>
+                        <div class="timer-bar"><div id="timer-fill"></div></div>
+                    </div>
+                    <div class="quiz-body">
+                        <h3 id="quiz-question">Как переводится слово "Ambition"?</h3>
+                        <div class="options-grid" id="quiz-options"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: SPELLING -->
+            <section id="tab-spelling" class="tab-pane">
+                <div class="spelling-container">
+                    <div class="spelling-card">
+                        <button class="audio-btn-large" id="spelling-audio-btn">
+                            <i data-lucide="volume-2"></i>
+                        </button>
+                        <p class="spelling-hint" id="spelling-hint">Определение: High determination to achieve success</p>
+                        <form id="spelling-form">
+                            <input type="text" id="spelling-input" placeholder="Введите услышанное слово..." autocomplete="off">
+                            <button type="submit" class="btn-primary btn-block">Проверить</button>
+                        </form>
+                        <div id="spelling-feedback" class="feedback-msg"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Navigation (Mobile) -->
+        <nav class="mobile-nav">
+            <button class="mobile-nav-btn active" data-tab="search">
+                <i data-lucide="search"></i><span>Поиск</span>
+            </button>
+            <button class="mobile-nav-btn" data-tab="dictionary">
+                <i data-lucide="book-open"></i><span>Словарь</span>
+            </button>
+            <button class="mobile-nav-btn" data-tab="cards">
+                <i data-lucide="layers"></i><span>Карточки</span>
+            </button>
+            <button class="mobile-nav-btn" data-tab="quiz">
+                <i data-lucide="brain-circuit"></i><span>Квиз</span>
+            </button>
+            <button class="mobile-nav-btn" data-tab="spelling">
+                <i data-lucide="pen-tool"></i><span>Письмо</span>
+            </button>
+        </nav>
     </div>
-  </header>
 
-  <!-- Main Content Area -->
-  <main class="flex-1 max-w-4xl w-full mx-auto p-4 pb-24 sm:pb-8">
-    
-    <!-- STATS BANNER -->
-    <section class="grid grid-cols-3 gap-3 mb-6">
-      <div class="stat-card">
-        <span class="text-xs text-slate-400">Всего слов</span>
-        <span id="stat-total" class="text-xl font-bold text-white">0</span>
-      </div>
-      <div class="stat-card">
-        <span class="text-xs text-slate-400">Изучено</span>
-        <span id="stat-learned" class="text-xl font-bold text-brand-500">0</span>
-      </div>
-      <div class="stat-card">
-        <span class="text-xs text-slate-400">Точность</span>
-        <span id="stat-accuracy" class="text-xl font-bold text-amber-400">0%</span>
-      </div>
-    </section>
-
-    <!-- VIEW 1: DICTIONARY -->
-    <section id="view-dictionary" class="view-panel space-y-4">
-      <!-- Add Word Form -->
-      <form id="add-word-form" class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60 shadow-xl space-y-3">
-        <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
-          <i data-lucide="plus-circle" class="w-4 h-4 text-brand-500"></i> Добавить новое слово
-        </h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input type="text" id="input-word" placeholder="Word (e.g. Resilience)" required class="input-field" />
-          <input type="text" id="input-translation" placeholder="Перевод (напр. Устойчивость)" required class="input-field" />
+    <!-- Modal: Add Custom Word -->
+    <div class="modal-overlay hidden" id="custom-word-modal">
+        <div class="modal-card">
+            <h3>Добавить свое слово</h3>
+            <form id="custom-word-form">
+                <div class="input-group">
+                    <label>Слово (English)</label>
+                    <input type="text" id="cust-word" required>
+                </div>
+                <div class="input-group">
+                    <label>Перевод / Определение</label>
+                    <input type="text" id="cust-def" required>
+                </div>
+                <div class="input-group">
+                    <label>Пример использования</label>
+                    <input type="text" id="cust-ex">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="close-modal-btn">Отмена</button>
+                    <button type="submit" class="btn-primary">Сохранить</button>
+                </div>
+            </form>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <input type="text" id="input-context" placeholder="Пример предложения (опционально)" class="input-field" />
-          <select id="input-tag" class="input-field">
-            <option value="General">General</option>
-            <option value="Work">Work & Tech</option>
-            <option value="Travel">Travel</option>
-            <option value="Slang">Slang</option>
-          </select>
-        </div>
-        <button type="submit" class="btn-primary w-full py-2.5 flex items-center justify-center gap-2 font-medium">
-          <i data-lucide="check" class="w-4 h-4"></i> Сохранить слово
-        </button>
-      </form>
+    </div>
 
-      <!-- Tools Bar (Search & Export) -->
-      <div class="flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div class="relative w-full sm:w-72">
-          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input type="text" id="search-input" oninput="renderDictionary()" placeholder="Поиск по словарю..." class="input-field pl-9 py-2 text-sm" />
-        </div>
-        <div class="flex gap-2 w-full sm:w-auto justify-end">
-          <button onclick="exportWords()" class="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5">
-            <i data-lucide="download" class="w-3.5 h-3.5"></i> Экспорт
-          </button>
-          <label class="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer">
-            <i data-lucide="upload" class="w-3.5 h-3.5"></i> Импорт
-            <input type="file" id="import-file" onchange="importWords(event)" class="hidden" accept=".json" />
-          </label>
-        </div>
-      </div>
-
-      <!-- Words List -->
-      <div id="words-list" class="space-y-2.5"></div>
-    </section>
-
-    <!-- VIEW 2: FLASHCARDS -->
-    <section id="view-cards" class="view-panel hidden">
-      <div id="card-container" class="max-w-md mx-auto my-8">
-        <!-- Flashcard rendering dynamically -->
-      </div>
-    </section>
-
-    <!-- VIEW 3: SPRINT GAME -->
-    <section id="view-sprint" class="view-panel hidden">
-      <div id="sprint-container" class="max-w-md mx-auto bg-slate-800/60 p-6 rounded-3xl border border-slate-700/60 text-center shadow-2xl">
-        <!-- Sprint gameplay rendering dynamically -->
-      </div>
-    </section>
-
-  </main>
-
-  <script type="text/babel" src="app.ts"></script>
+    <script src="script.js"></script>
 </body>
 </html>
