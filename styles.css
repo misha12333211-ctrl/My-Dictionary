@@ -1,0 +1,35 @@
+@layer components {
+  .input-field {
+    @apply w-full bg-slate-900/80 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all;
+  }
+
+  .btn-primary {
+    @apply bg-brand-500 hover:bg-brand-600 active:scale-[0.98] text-slate-950 font-semibold rounded-xl px-4 py-2 text-sm transition-all shadow-lg shadow-brand-500/10 cursor-pointer;
+  }
+
+  .btn-secondary {
+    @apply bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 border border-slate-700 font-medium rounded-xl px-4 py-2 text-sm transition-all cursor-pointer;
+  }
+
+  .tab-btn {
+    @apply px-3 py-1.5 rounded-lg text-slate-400 font-medium transition-all hover:text-white cursor-pointer;
+  }
+
+  .tab-btn.active {
+    @apply bg-slate-700 text-white shadow-sm;
+  }
+
+  .stat-card {
+    @apply bg-slate-800/40 border border-slate-800 p-3 rounded-2xl text-center flex flex-col justify-center;
+  }
+}
+
+/* 3D Perspective for Cards */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+/* Touch fixes for mobile */
+button, input, select {
+  touch-action: manipulation;
+}
