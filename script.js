@@ -1,373 +1,339 @@
-// --- TYPES & INTERFACES ---
-interface Word {
-  id: string;
-  word: string;
-  translation: string;
-  context?: string;
-  tag: string;
-  strength: number; // 0 to 5
-  lastReviewed?: number;
-}
-
-// --- STATE MANAGEMENT ---
-const STORAGE_KEY = 'lexicon_flow_words';
-
-const defaultWords: Word[] = [
-  { id: '1', word: 'Serendipity', translation: 'Счастливая случайность', context: 'Finding this app was pure serendipity.', tag: 'General', strength: 2 },
-  { id: '2', word: 'Resilience', translation: 'Устойчивость / Губчатость', context: 'Emotional resilience helps in tough times.', tag: 'General', strength: 4 },
-  { id: '3', word: 'Refactor', translation: 'Рефакторинг кода', context: 'We need to refactor this TypeScript module.', tag: 'Work', strength: 5 },
-  { id: '4', word: 'Wanderlust', translation: 'Жажда путешествий', context: 'Her wanderlust took her all over Asia.', tag: 'Travel', strength: 1 },
+// State Management
+const defaultWords = [
+    { word: "Resilient", phonetic: "/rɪˈzɪliənt/", pos: "adjective", def: "Способный быстро восстанавливаться после трудностей", ex: "She is a resilient person who never gives up.", learned: false },
+    { word: "Eloquent", phonetic: "/ˈeləkwənt/", pos: "adjective", def: "Красноречивый, убедительно говорящий", ex: "His eloquent speech moved everyone in the room.", learned: false },
+    { word: "Serendipity", phonetic: "/ˌserənˈdɪpəti/", pos: "noun", def: "Счастливая случайность, интуитивная прозорливость", ex: "Finding this book was pure serendipity.", learned: false },
+    { word: "Ambition", phonetic: "/æmˈbɪʃn/", pos: "noun", def: "Амбиция, сильное стремление к успеху", ex: "Her ambition is to become a top software engineer.", learned: false }
 ];
 
-let words: Word[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || defaultWords;
+let dictionary = JSON.parse(localStorage.getItem('vocab_dict')) || defaultWords;
+let streak = parseInt(localStorage.getItem('vocab_streak')) || 1;
+let dailyGoal = parseInt(localStorage.getItem('vocab_daily')) || 2;
+let currentTheme = localStorage.getItem('vocab_theme') || 'dark';
 
-function saveWords(): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
-  updateStats();
+let currentCardIndex = 0;
+let quizScore = 0;
+let quizIndex = 0;
+let quizTimer = null;
+
+// Initialize Lucide Icons
+document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+    initTheme();
+    updateProgress();
+    renderDictionary();
+    setupEventListeners();
+});
+
+// Theme Toggle
+function initTheme() {
+    document.documentElement.setAttribute('data-theme', currentTheme);
 }
 
-// --- SPEECH SYNTHESIS ---
-function speakWord(text: string): void {
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
+function toggleTheme() {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    localStorage.setItem('vocab_theme', currentTheme);
+}
+
+// Navigation System
+function setupEventListeners() {
+    document.querySelectorAll('[data-tab]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const tabName = e.currentTarget.getAttribute('data-tab');
+            switchTab(tabName);
+        });
+    });
+
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    document.getElementById('theme-toggle-mobile').addEventListener('click', toggleTheme);
+
+    // Search
+    document.getElementById('search-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const query = document.getElementById('search-input').value.trim();
+        if (query) searchWord(query);
+    });
+
+    document.querySelectorAll('.tag-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const word = btn.getAttribute('data-word');
+            document.getElementById('search-input').value = word;
+            searchWord(word);
+        });
+    });
+
+    // Custom Word Modal
+    document.getElementById('add-custom-word-btn').addEventListener('click', () => {
+        document.getElementById('custom-word-modal').classList.remove('hidden');
+    });
+
+    document.getElementById('close-modal-btn').addEventListener('click', () => {
+        document.getElementById('custom-word-modal').classList.add('hidden');
+    });
+
+    document.getElementById('custom-word-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const word = document.getElementById('cust-word').value;
+        const def = document.getElementById('cust-def').value;
+        const ex = document.getElementById('cust-ex').value;
+
+        dictionary.push({ word, phonetic: '', pos: 'custom', def, ex, learned: false });
+        saveDict();
+        renderDictionary();
+        document.getElementById('custom-word-modal').classList.add('hidden');
+        e.target.reset();
+    });
+
+    // Flashcards Flip
+    const card = document.getElementById('flashcard');
+    card.addEventListener('click', (e) => {
+        if (!e.target.closest('.audio-btn')) {
+            card.classList.toggle('flipped');
+        }
+    });
+
+    document.getElementById('next-card').addEventListener('click', () => changeCard(1));
+    document.getElementById('prev-card').addEventListener('click', () => changeCard(-1));
+    document.getElementById('mark-learned-btn').addEventListener('click', markCurrentLearned);
+
+    // Spelling
+    document.getElementById('spelling-form').addEventListener('submit', checkSpelling);
+    document.getElementById('spelling-audio-btn').addEventListener('click', () => {
+        const word = dictionary[currentCardIndex]?.word || "Resilient";
+        speak(word);
+    });
+}
+
+function switchTab(tabName) {
+    document.querySelectorAll('.nav-btn, .mobile-nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+    });
+
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+        pane.classList.remove('active');
+    });
+
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+
+    if (tabName === 'cards') loadFlashcard();
+    if (tabName === 'quiz') startQuiz();
+    if (tabName === 'spelling') loadSpelling();
+}
+
+// API Integration: Free Dictionary API
+async function searchWord(word) {
+    const resultBox = document.getElementById('word-result');
+    resultBox.classList.remove('hidden');
+    resultBox.innerHTML = `<p>Загрузка данных для "${word}"...</p>`;
+
+    try {
+        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+        if (!response.ok) throw new Error('Слово не найдено');
+
+        const data = await response[0];
+        const wordData = data[0];
+        const meaning = wordData.meanings[0];
+
+        resultBox.innerHTML = `
+            <div class="word-header">
+                <div class="word-title-group">
+                    <h2>${wordData.word}</h2>
+                    <p class="phonetic">${wordData.phonetic || ''}</p>
+                </div>
+                <button class="btn-primary" onclick="addFromSearch('${wordData.word}', '${wordData.phonetic || ''}', '${meaning.definitions[0].definition}')">
+                    <i data-lucide="plus"></i> Сохранить
+                </button>
+            </div>
+            <div class="meaning-block">
+                <p class="part-of-speech">${meaning.partOfSpeech}</p>
+                <ul class="definition-list">
+                    <li>${meaning.definitions[0].definition}</li>
+                </ul>
+            </div>
+        `;
+        lucide.createIcons();
+    } catch (err) {
+        resultBox.innerHTML = `<p style="color: var(--danger)">Слово не найдено в словаре. Попробуйте другое.</p>`;
+    }
+}
+
+function addFromSearch(word, phonetic, def) {
+    if (!dictionary.some(w => w.word.toLowerCase() === word.toLowerCase())) {
+        dictionary.push({ word, phonetic, pos: 'general', def, ex: '', learned: false });
+        saveDict();
+        renderDictionary();
+        alert(`Слово "${word}" добавлено в ваш словарь!`);
+    } else {
+        alert('Это слово уже есть в вашем словаре.');
+    }
+}
+
+// LocalStorage Utils
+function saveDict() {
+    localStorage.setItem('vocab_dict', JSON.stringify(dictionary));
+    updateProgress();
+}
+
+function updateProgress() {
+    const learnedCount = dictionary.filter(w => w.learned).length;
+    document.getElementById('dict-count-badge').textContent = dictionary.length;
+    document.getElementById('daily-goal-text').textContent = `${learnedCount}/${dailyGoal}`;
+    document.getElementById('streak-count').textContent = streak;
+    document.getElementById('streak-count-mobile').textContent = streak;
+
+    const percentage = Math.min((learnedCount / dailyGoal) * 100, 100);
+    document.getElementById('daily-progress').style.width = `${percentage}%`;
+}
+
+// Render Dictionary
+function renderDictionary() {
+    const grid = document.getElementById('saved-words-list');
+    grid.innerHTML = '';
+
+    dictionary.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = 'dict-card';
+        card.innerHTML = `
+            <h3>${item.word}</h3>
+            <p class="def">${item.def}</p>
+            <div class="card-footer-mini">
+                <span style="color: ${item.learned ? 'var(--success)' : 'var(--warning)'}">
+                    ${item.learned ? '✓ Выучено' : '• В процессе'}
+                </span>
+                <button class="icon-btn" onclick="deleteWord(${index})"><i data-lucide="trash-2"></i></button>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+    lucide.createIcons();
+}
+
+function deleteWord(index) {
+    dictionary.splice(index, 1);
+    saveDict();
+    renderDictionary();
+}
+
+// Speech Synthesis
+function speak(text) {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
-    utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
-  }
 }
 
-// --- TAB SWITCHER ---
-(window as any).switchTab = function (tab: 'dictionary' | 'cards' | 'sprint'): void {
-  document.querySelectorAll('.view-panel').forEach(el => el.classList.add('hidden'));
-  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+// Flashcards System
+function loadFlashcard() {
+    if (dictionary.length === 0) return;
+    const item = dictionary[currentCardIndex];
 
-  document.getElementById(`view-${tab}`)?.classList.remove('hidden');
-  document.getElementById(`nav-${tab}`)?.classList.add('active');
+    document.getElementById('card-index').textContent = `${currentCardIndex + 1} / ${dictionary.length}`;
+    document.getElementById('card-word').textContent = item.word;
+    document.getElementById('card-phonetic').textContent = item.phonetic || '';
+    document.getElementById('card-pos').textContent = item.pos || 'word';
+    document.getElementById('card-definition').textContent = item.def;
+    document.getElementById('card-example').textContent = item.ex ? `"${item.ex}"` : '';
 
-  if (tab === 'cards') initCards();
-  if (tab === 'sprint') initSprint();
-  if (tab === 'dictionary') renderDictionary();
-};
+    document.getElementById('card-audio-btn').onclick = (e) => {
+        e.stopPropagation();
+        speak(item.word);
+    };
 
-// --- STATS UPDATE ---
-function updateStats(): void {
-  const total = words.length;
-  const learned = words.filter(w => w.strength >= 4).length;
-  const avgStrength = total > 0 ? Math.round((words.reduce((acc, w) => acc + w.strength, 0) / (total * 5)) * 100) : 0;
-
-  const totalEl = document.getElementById('stat-total');
-  const learnedEl = document.getElementById('stat-learned');
-  const accuracyEl = document.getElementById('stat-accuracy');
-
-  if (totalEl) totalEl.innerText = total.toString();
-  if (learnedEl) learnedEl.innerText = learned.toString();
-  if (accuracyEl) accuracyEl.innerText = `${avgStrength}%`;
+    document.getElementById('flashcard').classList.remove('flipped');
 }
 
-// --- DICTIONARY RENDER & ACTIONS ---
-(window as any).renderDictionary = function (): void {
-  const listEl = document.getElementById('words-list');
-  const searchVal = (document.getElementById('search-input') as HTMLInputElement)?.value.toLowerCase() || '';
-
-  if (!listEl) return;
-
-  const filtered = words.filter(w => 
-    w.word.toLowerCase().includes(searchVal) || 
-    w.translation.toLowerCase().includes(searchVal) ||
-    w.tag.toLowerCase().includes(searchVal)
-  );
-
-  if (filtered.length === 0) {
-    listEl.innerHTML = `
-      <div class="text-center py-12 text-slate-500">
-        <p>Слова не найдены</p>
-      </div>`;
-    return;
-  }
-
-  listEl.innerHTML = filtered.map(w => `
-    <div class="bg-slate-800/40 border border-slate-700/50 p-4 rounded-xl flex items-center justify-between gap-4 hover:border-slate-600 transition-all">
-      <div class="space-y-1">
-        <div class="flex items-center gap-2">
-          <span class="font-bold text-white text-base sm:text-lg">${escapeHtml(w.word)}</span>
-          <button onclick="speakWord('${escapeHtml(w.word)}')" class="text-slate-400 hover:text-brand-500 transition-colors p-1">
-            <i data-lucide="volume-2" class="w-4 h-4"></i>
-          </button>
-          <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-700/60 text-slate-300 font-medium">${escapeHtml(w.tag)}</span>
-        </div>
-        <p class="text-slate-300 text-sm">${escapeHtml(w.translation)}</p>
-        ${w.context ? `<p class="text-xs text-slate-400 italic">"${escapeHtml(w.context)}"</p>` : ''}
-      </div>
-      <div class="flex items-center gap-3">
-        <!-- Progress Dots -->
-        <div class="hidden sm:flex gap-1" title="Уровень освоения: ${w.strength}/5">
-          ${[1, 2, 3, 4, 5].map(i => `
-            <div class="w-1.5 h-4 rounded-full ${i <= w.strength ? 'bg-brand-500' : 'bg-slate-700'}"></div>
-          `).join('')}
-        </div>
-        <button onclick="deleteWord('${w.id}')" class="text-slate-500 hover:text-rose-400 p-2 transition-colors">
-          <i data-lucide="trash-2" class="w-4 h-4"></i>
-        </button>
-      </div>
-    </div>
-  `).join('');
-
-  if ((window as any).lucide) (window as any).lucide.createIcons();
-};
-
-function escapeHtml(str: string): string {
-  return str.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m] || m));
+function changeCard(dir) {
+    currentCardIndex = (currentCardIndex + dir + dictionary.length) % dictionary.length;
+    loadFlashcard();
 }
 
-(window as any).deleteWord = function (id: string): void {
-  words = words.filter(w => w.id !== id);
-  saveWords();
-  (window as any).renderDictionary();
-};
-
-// Add Word Form Listener
-document.getElementById('add-word-form')?.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const wordInput = document.getElementById('input-word') as HTMLInputElement;
-  const transInput = document.getElementById('input-translation') as HTMLInputElement;
-  const contextInput = document.getElementById('input-context') as HTMLInputElement;
-  const tagInput = document.getElementById('input-tag') as HTMLSelectElement;
-
-  const newWord: Word = {
-    id: Date.now().toString(),
-    word: wordInput.value.trim(),
-    translation: transInput.value.trim(),
-    context: contextInput.value.trim() || undefined,
-    tag: tagInput.value,
-    strength: 0
-  };
-
-  words.unshift(newWord);
-  saveWords();
-
-  wordInput.value = '';
-  transInput.value = '';
-  contextInput.value = '';
-
-  (window as any).renderDictionary();
-});
-
-// --- FLASHCARDS LOGIC ---
-let currentCardIndex = 0;
-let isFlipped = false;
-
-function initCards(): void {
-  const container = document.getElementById('card-container');
-  if (!container) return;
-
-  if (words.length === 0) {
-    container.innerHTML = `<div class="text-center text-slate-400">Сначала добавьте несколько слов в словарь.</div>`;
-    return;
-  }
-
-  currentCardIndex = 0;
-  renderCard();
+function markCurrentLearned() {
+    dictionary[currentCardIndex].learned = true;
+    saveDict();
+    changeCard(1);
 }
 
-function renderCard(): void {
-  const container = document.getElementById('card-container');
-  if (!container || words.length === 0) return;
-
-  const current = words[currentCardIndex % words.length];
-  isFlipped = false;
-
-  container.innerHTML = `
-    <div class="perspective-1000">
-      <div id="flashcard" onclick="flipCard()" class="relative w-full h-64 bg-slate-800 rounded-3xl border border-slate-700 p-6 flex flex-col items-center justify-center text-center cursor-pointer shadow-2xl transition-all duration-500">
-        <div id="card-content">
-          <span class="text-xs font-semibold uppercase tracking-wider text-brand-500 mb-2 block">${current.tag}</span>
-          <h2 class="text-3xl font-extrabold text-white mb-2">${escapeHtml(current.word)}</h2>
-          <p class="text-xs text-slate-400">Нажмите, чтобы перевернуть</p>
-        </div>
-      </div>
-    </div>
-    <div class="flex justify-between items-center mt-6 gap-4">
-      <button onclick="reviewCard(false)" class="btn-secondary flex-1 py-3 text-rose-400 hover:bg-rose-500/10 border-rose-500/20">Плохо знаю</button>
-      <button onclick="reviewCard(true)" class="btn-primary flex-1 py-3">Отлично знаю</button>
-    </div>
-  `;
+// Quiz System
+function startQuiz() {
+    quizIndex = 0;
+    quizScore = 0;
+    showQuestion();
 }
 
-(window as any).flipCard = function (): void {
-  const cardContent = document.getElementById('card-content');
-  const current = words[currentCardIndex % words.length];
-  if (!cardContent) return;
-
-  isFlipped = !isFlipped;
-  if (isFlipped) {
-    cardContent.innerHTML = `
-      <h2 class="text-2xl font-bold text-brand-500 mb-2">${escapeHtml(current.translation)}</h2>
-      ${current.context ? `<p class="text-sm text-slate-300 italic px-4">"${escapeHtml(current.context)}"</p>` : ''}
-    `;
-    speakWord(current.word);
-  } else {
-    cardContent.innerHTML = `
-      <span class="text-xs font-semibold uppercase tracking-wider text-brand-500 mb-2 block">${current.tag}</span>
-      <h2 class="text-3xl font-extrabold text-white mb-2">${escapeHtml(current.word)}</h2>
-      <p class="text-xs text-slate-400">Нажмите, чтобы перевернуть</p>
-    `;
-  }
-};
-
-(window as any).reviewCard = function (known: boolean): void {
-  if (words.length === 0) return;
-  const current = words[currentCardIndex % words.length];
-
-  if (known) {
-    current.strength = Math.min(5, current.strength + 1);
-  } else {
-    current.strength = Math.max(0, current.strength - 1);
-  }
-
-  saveWords();
-  currentCardIndex++;
-  renderCard();
-};
-
-// --- SPRINT GAME LOGIC ---
-let sprintScore = 0;
-let sprintTimer = 30;
-let sprintInterval: any = null;
-let currentSprintItem: { word: string; translation: string; isCorrect: boolean } | null = null;
-
-function initSprint(): void {
-  const container = document.getElementById('sprint-container');
-  if (!container) return;
-
-  if (words.length < 2) {
-    container.innerHTML = `<p class="text-slate-400">Для игры требуется минимум 2 слова в словаре.</p>`;
-    return;
-  }
-
-  sprintScore = 0;
-  sprintTimer = 30;
-  clearInterval(sprintInterval);
-
-  container.innerHTML = `
-    <div class="space-y-4">
-      <div class="flex justify-between text-sm font-semibold">
-        <span class="text-slate-400">Счет: <span id="sprint-score" class="text-brand-500 font-bold">0</span></span>
-        <span class="text-slate-400">Время: <span id="sprint-timer" class="text-amber-400 font-bold">30</span>s</span>
-      </div>
-      <div id="sprint-card" class="py-8 bg-slate-900/60 rounded-2xl border border-slate-700/50">
-        <!-- Questions injected here -->
-      </div>
-      <div class="grid grid-cols-2 gap-3">
-        <button onclick="answerSprint(false)" class="btn-secondary py-3 text-rose-400 hover:bg-rose-500/10 border-rose-500/20">Неверно</button>
-        <button onclick="answerSprint(true)" class="btn-primary py-3">Верно</button>
-      </div>
-    </div>
-  `;
-
-  nextSprintQuestion();
-  sprintInterval = setInterval(() => {
-    sprintTimer--;
-    const timerEl = document.getElementById('sprint-timer');
-    if (timerEl) timerEl.innerText = sprintTimer.toString();
-
-    if (sprintTimer <= 0) {
-      clearInterval(sprintInterval);
-      endSprint();
+function showQuestion() {
+    if (quizIndex >= Math.min(dictionary.length, 5)) {
+        document.getElementById('quiz-box').innerHTML = `
+            <div style="text-align: center;">
+                <h2>Отличная работа! 🎉</h2>
+                <p style="margin: 16px 0;">Ваш результат: <strong>${quizScore}</strong> из ${Math.min(dictionary.length, 5)}</p>
+                <button class="btn-primary" onclick="startQuiz()">Пройти снова</button>
+            </div>
+        `;
+        return;
     }
-  }, 1000);
-}
 
-function nextSprintQuestion(): void {
-  if (words.length === 0) return;
-  const target = words[Math.floor(Math.random() * words.length)];
-  const isCorrect = Math.random() > 0.5;
+    const current = dictionary[quizIndex];
+    document.getElementById('quiz-current').textContent = quizIndex + 1;
+    document.getElementById('quiz-total').textContent = Math.min(dictionary.length, 5);
+    document.getElementById('quiz-score').textContent = quizScore;
+    document.getElementById('quiz-question').textContent = `Как переводится "${current.word}"?`;
 
-  let displayTranslation = target.translation;
-  if (!isCorrect) {
-    const otherWords = words.filter(w => w.id !== target.id);
-    displayTranslation = otherWords[Math.floor(Math.random() * otherWords.length)].translation;
-  }
+    const optionsContainer = document.getElementById('quiz-options');
+    optionsContainer.innerHTML = '';
 
-  currentSprintItem = { word: target.word, translation: displayTranslation, isCorrect };
-
-  const sprintCard = document.getElementById('sprint-card');
-  if (sprintCard) {
-    sprintCard.innerHTML = `
-      <h3 class="text-2xl font-bold text-white mb-1">${escapeHtml(target.word)}</h3>
-      <p class="text-slate-400 text-sm mb-2">означает</p>
-      <p class="text-xl font-semibold text-brand-500">${escapeHtml(displayTranslation)}</p>
-    `;
-  }
-}
-
-(window as any).answerSprint = function (userChoice: boolean): void {
-  if (!currentSprintItem) return;
-
-  if (userChoice === currentSprintItem.isCorrect) {
-    sprintScore += 10;
-  } else {
-    sprintScore = Math.max(0, sprintScore - 5);
-  }
-
-  const scoreEl = document.getElementById('sprint-score');
-  if (scoreEl) scoreEl.innerText = sprintScore.toString();
-
-  nextSprintQuestion();
-};
-
-function endSprint(): void {
-  const container = document.getElementById('sprint-container');
-  if (!container) return;
-
-  container.innerHTML = `
-    <div class="space-y-4 py-4">
-      <i data-lucide="trophy" class="w-12 h-12 text-amber-400 mx-auto"></i>
-      <h3 class="text-xl font-bold text-white">Время вышло!</h3>
-      <p class="text-slate-300">Ваш результат: <span class="text-brand-500 font-bold text-lg">${sprintScore}</span> очков</p>
-      <button onclick="initSprint()" class="btn-primary w-full py-2.5">Играть снова</button>
-    </div>
-  `;
-  if ((window as any).lucide) (window as any).lucide.createIcons();
-}
-
-// --- IMPORT / EXPORT ---
-(window as any).exportWords = function (): void {
-  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(words, null, 2));
-  const downloadAnchor = document.createElement('a');
-  downloadAnchor.setAttribute("href", dataStr);
-  downloadAnchor.setAttribute("download", `lexicon_export_${Date.now()}.json`);
-  document.body.appendChild(downloadAnchor);
-  downloadAnchor.click();
-  downloadAnchor.remove();
-};
-
-(window as any).importWords = function (event: Event): void {
-  const input = event.target as HTMLInputElement;
-  if (!input.files || input.files.length === 0) return;
-
-  const file = input.files[0];
-  const reader = new FileReader();
-
-  reader.onload = (e) => {
-    try {
-      const imported = JSON.parse(e.target?.result as string);
-      if (Array.isArray(imported)) {
-        words = imported;
-        saveWords();
-        (window as any).renderDictionary();
-        alert('Словарь успешно импортирован!');
-      }
-    } catch (err) {
-      alert('Ошибка при чтении JSON файла.');
+    let options = [current.def];
+    while (options.length < 4 && options.length < dictionary.length) {
+        let randomDef = dictionary[Math.floor(Math.random() * dictionary.length)].def;
+        if (!options.includes(randomDef)) options.push(randomDef);
     }
-  };
+    options.sort(() => Math.random() - 0.5);
 
-  reader.readAsText(file);
-};
+    options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = opt;
+        btn.onclick = () => selectOption(btn, opt === current.def);
+        optionsContainer.appendChild(btn);
+    });
+}
 
-// --- INITIALIZATION ---
-window.addEventListener('DOMContentLoaded', () => {
-  updateStats();
-  (window as any).renderDictionary();
-});
+function selectOption(btn, isCorrect) {
+    if (isCorrect) {
+        btn.classList.add('correct');
+        quizScore++;
+    } else {
+        btn.classList.add('wrong');
+    }
+
+    setTimeout(() => {
+        quizIndex++;
+        showQuestion();
+    }, 1000);
+}
+
+// Spelling System
+function loadSpelling() {
+    const item = dictionary[currentCardIndex] || dictionary[0];
+    document.getElementById('spelling-hint').textContent = `Определение: ${item.def}`;
+    document.getElementById('spelling-input').value = '';
+    document.getElementById('spelling-feedback').textContent = '';
+}
+
+function checkSpelling(e) {
+    e.preventDefault();
+    const input = document.getElementById('spelling-input').value.trim().toLowerCase();
+    const target = (dictionary[currentCardIndex] || dictionary[0]).word.toLowerCase();
+    const feedback = document.getElementById('spelling-feedback');
+
+    if (input === target) {
+        feedback.textContent = "✨ Верно! Отличная работа.";
+        feedback.style.color = "var(--success)";
+        setTimeout(() => {
+            changeCard(1);
+            loadSpelling();
+        }, 1500);
+    } else {
+        feedback.textContent = "❌ Ошибка, попробуйте еще раз!";
+        feedback.style.color = "var(--danger)";
+    }
+}
