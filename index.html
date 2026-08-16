@@ -1,209 +1,148 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="h-full bg-slate-900 text-slate-100">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lexicon Flow — Smart Dictionary</title>
-  <link rel="stylesheet" href="./style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Lexicon Flow — Стильный словарь английского</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Babel for running TypeScript directly in client -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="bg-slate-950 text-slate-100 flex flex-col min-h-screen">
+<body class="h-full flex flex-col font-sans antialiased selection:bg-brand-500 selection:text-white">
 
-  <!-- Header -->
-  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-      <div class="flex items-center gap-3">
-        <div class="p-2 bg-brand-600 rounded-xl shadow-lg shadow-brand-500/20">
-          <i data-lucide="book-open" class="w-6 h-6 text-white"></i>
+  <!-- Header / Navigation -->
+  <header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-4 py-3">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <div class="p-2 bg-brand-500/10 text-brand-500 rounded-xl border border-brand-500/20">
+          <i data-lucide="book-marked" class="w-6 h-6"></i>
         </div>
-        <div>
-          <h1 class="font-bold text-lg leading-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">Lexicon Flow</h1>
-          <p class="text-xs text-slate-400">Персональный словарь & Тренажёр</p>
-        </div>
+        <span class="font-bold text-xl tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+          Lexicon<span class="text-brand-500">Flow</span>
+        </span>
       </div>
 
-      <!-- Navigation Tabs -->
-      <nav class="flex gap-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/50">
-        <button id="tab-dictionary" class="nav-tab active flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all">
-          <i data-lucide="list" class="w-4 h-4"></i>
-          <span>Словарь</span>
+      <!-- Tab Switcher -->
+      <nav class="flex bg-slate-800/80 p-1 rounded-xl border border-slate-700/50 text-xs sm:text-sm">
+        <button id="nav-dictionary" onclick="switchTab('dictionary')" class="tab-btn active">
+          <i data-lucide="list" class="w-4 h-4 mr-1 sm:mr-1.5 inline"></i>Словарь
         </button>
-        <button id="tab-practice" class="nav-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all">
-          <i data-lucide="brain-circuit" class="w-4 h-4"></i>
-          <span>Тренировка</span>
+        <button id="nav-cards" onclick="switchTab('cards')" class="tab-btn">
+          <i data-lucide="layers" class="w-4 h-4 mr-1 sm:mr-1.5 inline"></i>Карточки
         </button>
-        <button id="tab-stats" class="nav-tab flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all">
-          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
-          <span>Статистика</span>
+        <button id="nav-sprint" onclick="switchTab('sprint')" class="tab-btn">
+          <i data-lucide="zap" class="w-4 h-4 mr-1 sm:mr-1.5 inline"></i>Спринт
         </button>
       </nav>
     </div>
   </header>
 
   <!-- Main Content Area -->
-  <main class="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
+  <main class="flex-1 max-w-4xl w-full mx-auto p-4 pb-24 sm:pb-8">
     
+    <!-- STATS BANNER -->
+    <section class="grid grid-cols-3 gap-3 mb-6">
+      <div class="stat-card">
+        <span class="text-xs text-slate-400">Всего слов</span>
+        <span id="stat-total" class="text-xl font-bold text-white">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="text-xs text-slate-400">Изучено</span>
+        <span id="stat-learned" class="text-xl font-bold text-brand-500">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="text-xs text-slate-400">Точность</span>
+        <span id="stat-accuracy" class="text-xl font-bold text-amber-400">0%</span>
+      </div>
+    </section>
+
     <!-- VIEW 1: DICTIONARY -->
-    <section id="view-dictionary" class="space-y-6">
-      
-      <!-- Top Actions Bar -->
-      <div class="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center">
-        <!-- Search & Filter -->
-        <div class="flex flex-1 gap-3">
-          <div class="relative flex-1">
-            <i data-lucide="search" class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-            <input type="text" id="search-input" placeholder="Поиск по словам, переводу или тегам..." class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:border-brand-500 text-sm transition-colors">
-          </div>
-          <select id="category-filter" class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 text-slate-300">
-            <option value="all">Все категории</option>
+    <section id="view-dictionary" class="view-panel space-y-4">
+      <!-- Add Word Form -->
+      <form id="add-word-form" class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700/60 shadow-xl space-y-3">
+        <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4 text-brand-500"></i> Добавить новое слово
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input type="text" id="input-word" placeholder="Word (e.g. Resilience)" required class="input-field" />
+          <input type="text" id="input-translation" placeholder="Перевод (напр. Устойчивость)" required class="input-field" />
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input type="text" id="input-context" placeholder="Пример предложения (опционально)" class="input-field" />
+          <select id="input-tag" class="input-field">
+            <option value="General">General</option>
+            <option value="Work">Work & Tech</option>
+            <option value="Travel">Travel</option>
+            <option value="Slang">Slang</option>
           </select>
         </div>
+        <button type="submit" class="btn-primary w-full py-2.5 flex items-center justify-center gap-2 font-medium">
+          <i data-lucide="check" class="w-4 h-4"></i> Сохранить слово
+        </button>
+      </form>
 
-        <!-- Add Button & Export/Import -->
-        <div class="flex gap-2">
-          <button id="btn-open-add" class="flex items-center gap-2 bg-brand-600 hover:bg-brand-500 text-white font-medium px-4 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-brand-600/20 active:scale-95">
-            <i data-lucide="plus" class="w-4 h-4"></i>
-            <span>Добавить слово</span>
+      <!-- Tools Bar (Search & Export) -->
+      <div class="flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div class="relative w-full sm:w-72">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input type="text" id="search-input" oninput="renderDictionary()" placeholder="Поиск по словарю..." class="input-field pl-9 py-2 text-sm" />
+        </div>
+        <div class="flex gap-2 w-full sm:w-auto justify-end">
+          <button onclick="exportWords()" class="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Экспорт
           </button>
-          <button id="btn-export" title="Экспорт словаря" class="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors">
-            <i data-lucide="download" class="w-4 h-4"></i>
-          </button>
-          <label title="Импорт словаря" class="p-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer">
-            <i data-lucide="upload" class="w-4 h-4"></i>
-            <input type="file" id="import-file" class="hidden" accept=".json">
+          <label class="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="upload" class="w-3.5 h-3.5"></i> Импорт
+            <input type="file" id="import-file" onchange="importWords(event)" class="hidden" accept=".json" />
           </label>
         </div>
       </div>
 
-      <!-- Words Grid -->
-      <div id="words-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <!-- JS dynamically renders cards here -->
-      </div>
+      <!-- Words List -->
+      <div id="words-list" class="space-y-2.5"></div>
+    </section>
 
-      <!-- Empty State -->
-      <div id="empty-state" class="hidden text-center py-16 border-2 border-dashed border-slate-800 rounded-2xl">
-        <i data-lucide="book-x" class="w-12 h-12 mx-auto text-slate-600 mb-3"></i>
-        <h3 class="text-lg font-medium text-slate-300">Словарь пока пуст</h3>
-        <p class="text-sm text-slate-500 mt-1 max-w-sm mx-auto">Добавьте свое первое слово вручную или нажмите "Импорт", чтобы загрузить готовый набор.</p>
+    <!-- VIEW 2: FLASHCARDS -->
+    <section id="view-cards" class="view-panel hidden">
+      <div id="card-container" class="max-w-md mx-auto my-8">
+        <!-- Flashcard rendering dynamically -->
       </div>
     </section>
 
-    <!-- VIEW 2: PRACTICE -->
-    <section id="view-practice" class="hidden max-w-2xl mx-auto space-y-6">
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-6">
-        <div class="flex justify-between items-center border-b border-slate-800 pb-4">
-          <div>
-            <h2 class="text-xl font-bold">Интерактивный тренажёр</h2>
-            <p class="text-xs text-slate-400">Проверьте свое знание сохраненных слов</p>
-          </div>
-          <span id="practice-score" class="px-3 py-1 bg-brand-500/10 text-brand-400 border border-brand-500/20 text-xs rounded-full font-semibold">Прогресс: 0 / 0</span>
-        </div>
-
-        <!-- Mode selector -->
-        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
-          <button id="mode-flashcards" class="practice-mode-btn active py-2 text-xs font-medium rounded-lg transition-all">Карточки (Flashcards)</button>
-          <button id="mode-quiz" class="practice-mode-btn py-2 text-xs font-medium rounded-lg transition-all">Тест (4 варианта)</button>
-        </div>
-
-        <!-- Flashcard Component -->
-        <div id="flashcard-container" class="py-8">
-          <div id="flashcard" class="relative w-full h-64 bg-slate-950 border border-slate-800 rounded-2xl cursor-pointer p-6 flex flex-col justify-between items-center text-center transition-all duration-300 hover:border-brand-500/50 shadow-xl group">
-            <span id="card-category" class="text-xs text-slate-500 font-semibold uppercase tracking-wider">General</span>
-            <div>
-              <h3 id="card-front" class="text-3xl font-extrabold text-white mb-2">Word</h3>
-              <p id="card-back" class="text-lg text-brand-400 font-medium hidden">Перевод</p>
-              <p id="card-example" class="text-xs text-slate-400 italic mt-3 hidden">"Пример предложения"</p>
-            </div>
-            <span class="text-xs text-slate-500 group-hover:text-slate-400">Нажмите, чтобы перевернуть</span>
-          </div>
-          
-          <div class="flex gap-3 mt-6">
-            <button id="btn-know-no" class="flex-1 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl text-sm font-medium transition-all">Ещё не выучил</button>
-            <button id="btn-know-yes" class="flex-1 py-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-xl text-sm font-medium transition-all">Знаю хорошо!</button>
-          </div>
-        </div>
-
-        <!-- Quiz Component -->
-        <div id="quiz-container" class="hidden space-y-6 py-4">
-          <div class="text-center space-y-2">
-            <span class="text-xs text-slate-500 uppercase tracking-widest font-semibold">Выберите правильный перевод</span>
-            <h3 id="quiz-word" class="text-3xl font-extrabold text-white">Word</h3>
-          </div>
-          <div id="quiz-options" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <!-- Dynamic quiz buttons -->
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- VIEW 3: STATS -->
-    <section id="view-stats" class="hidden max-w-4xl mx-auto space-y-6">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center gap-4">
-          <div class="p-3 bg-brand-500/10 text-brand-400 rounded-xl"><i data-lucide="book" class="w-6 h-6"></i></div>
-          <div>
-            <p class="text-xs text-slate-400">Всего слов</p>
-            <h4 id="stat-total" class="text-2xl font-bold">0</h4>
-          </div>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center gap-4">
-          <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl"><i data-lucide="check-circle-2" class="w-6 h-6"></i></div>
-          <div>
-            <p class="text-xs text-slate-400">Выучено</p>
-            <h4 id="stat-learned" class="text-2xl font-bold">0</h4>
-          </div>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex items-center gap-4">
-          <div class="p-3 bg-amber-500/10 text-amber-400 rounded-xl"><i data-lucide="flame" class="w-6 h-6"></i></div>
-          <div>
-            <p class="text-xs text-slate-400">Уровень освоения</p>
-            <h4 id="stat-mastery" class="text-2xl font-bold">0%</h4>
-          </div>
-        </div>
+    <!-- VIEW 3: SPRINT GAME -->
+    <section id="view-sprint" class="view-panel hidden">
+      <div id="sprint-container" class="max-w-md mx-auto bg-slate-800/60 p-6 rounded-3xl border border-slate-700/60 text-center shadow-2xl">
+        <!-- Sprint gameplay rendering dynamically -->
       </div>
     </section>
 
   </main>
 
-  <!-- MODAL: ADD / EDIT WORD -->
-  <div id="modal-word" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 space-y-4 shadow-2xl">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
-        <h3 id="modal-title" class="font-bold text-lg">Добавить новое слово</h3>
-        <button id="btn-close-modal" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
-      
-      <form id="word-form" class="space-y-4">
-        <input type="hidden" id="form-word-id">
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1">Слово на английском *</label>
-          <input type="text" id="form-english" required placeholder="e.g. Resilience" class="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-brand-500 text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1">Перевод на русский *</label>
-          <input type="text" id="form-translation" required placeholder="например: Устойчивость" class="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-brand-500 text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1">Транскрипция (необязательно)</label>
-          <input type="text" id="form-transcription" placeholder="e.g. /rɪˈzɪl.jəns/" class="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-brand-500 text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1">Категория</label>
-          <input type="text" id="form-category" placeholder="General, IT, Business, Travel..." class="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-brand-500 text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1">Пример использования</label>
-          <textarea id="form-example" rows="2" placeholder="e.g. Her resilience helped her overcome difficulties." class="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl focus:outline-none focus:border-brand-500 text-sm resize-none"></textarea>
-        </div>
-
-        <div class="flex justify-end gap-3 pt-2">
-          <button type="button" id="btn-cancel-modal" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium transition-colors">Отмена</button>
-          <button type="submit" class="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors">Сохранить</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <script type="module" src="./main.ts"></script>
+  <script type="text/babel" src="app.ts"></script>
 </body>
 </html>
